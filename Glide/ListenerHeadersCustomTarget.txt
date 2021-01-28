@@ -1,0 +1,66 @@
+    fun loadMagazinePage(
+        view: PhotoView,
+        url: String,
+        thumbUrl: String,
+        errorPlaceholder: Int = R.drawable.ic_baseline_image_24,
+        onImageLoadFailure: (error: ApiException) -> Unit = {}
+    ) {
+        val headers = LazyHeaders.Builder()
+            .addHeader(Constants.API_HEADER_KEY_AUTH, AUTH_TOKEN_VAL)
+            .addHeader(Constants.API_HEADER_KEY_LANG, Constants.API_HEADER_VAL_LANG)
+            .addHeader(Constants.API_HEADER_KEY_PROJECT_ID, Constants.API_HEADER_VAL_PROJECT_ID)
+            .build()
+
+        Glide.with(view.context)
+            .load(GlideUrl(url, headers))
+            .thumbnail(Glide.with(view.context).load(GlideUrl(thumbUrl, headers)))
+            .listener(object : RequestListener<Drawable> {
+                override fun onLoadFailed(
+                    e: GlideException?,
+                    model: Any?,
+                    target: Target<Drawable>?,
+                    isFirstResource: Boolean
+                ): Boolean {
+                    e?.rootCauses?.forEach { throwable ->
+                        if (throwable is HttpException) {
+                            val errorCode = throwable.statusCode
+                            if (ApiErrors.isSpecialError(errorCode)) {
+                                onImageLoadFailure(ApiException(errorCode, throwable.message))
+                                return false
+                            }
+                        }
+                    }
+
+                    return false
+                }
+
+                override fun onResourceReady(
+                    resource: Drawable?,
+                    model: Any?,
+                    target: Target<Drawable>?,
+                    dataSource: DataSource?,
+                    isFirstResource: Boolean
+                ): Boolean {
+                    return false
+                }
+
+            })
+            .placeholder(progressDrawable(view.context))
+            .error(errorPlaceholder)
+            .fallback(errorPlaceholder)
+            .into(object : CustomTarget<Drawable>() {
+                override fun onLoadCleared(placeholder: Drawable?) {
+
+                }
+
+                override fun onResourceReady(
+                    resource: Drawable,
+                    transition: com.bumptech.glide.request.transition.Transition<in Drawable>?
+                ) {
+                    val matrix = Matrix()
+                    view.attacher.getSuppMatrix(matrix)
+                    view.setImageDrawable(resource)
+                    view.attacher.setDisplayMatrix(matrix)
+                }
+            })
+    }
